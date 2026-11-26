@@ -32,3 +32,44 @@ Gaze estimates are experimental, not research-grade fixation measurements. Calib
 ## Hosting
 
 Static HTML/JavaScript, no server or API key. GitHub Pages serves index.html from the main branch root. Camera and screen capture require HTTPS, browser support and explicit permission.
+
+
+## GazeLab Desktop (Electron preview)
+
+The existing GitHub Pages app remains available. The desktop application shares its interface, calibration, MediaPipe worker and export code. It disables Chromium background throttling, uses explicit camera permissions and a desktop screen/window selection dialog, and prevents app suspension while open (not system sleep).
+
+### Run on macOS
+
+Install a supported Node.js LTS release from https://nodejs.org/ (Intel/x64 for an Intel Mac). In Terminal:
+
+```sh
+git clone https://github.com/aaron-ragsdale/GazeLab.git
+cd GazeLab
+npm install
+npm run check
+npm start
+```
+
+If you already cloned the repo, use git pull instead of cloning. Allow camera and screen recording under System Settings > Privacy & Security if prompted; macOS may require restarting GazeLab after changing screen recording permissions. The app uses a private loopback-only static asset server on port 47831 internally to provide a stable local origin for calibration storage. No separate web server command is needed. The port must be free.
+
+### First test: background reliability
+
+Start camera/model, then click Start 30-second test in Desktop background benchmark. Spend about 10 seconds with GazeLab focused, 10 seconds working in a different app, and 10 seconds with GazeLab minimized. Restore the app and compare foreground/background sample rates, valid sample percentage and observed inter-sample gaps. Export the benchmark CSV for analysis. Minimized and unfocused samples are combined in the background group. Compare both worker and main-thread processing. These results measure delivery of landmark samples, not gaze accuracy or recording synchronization.
+
+Next, calibrate in fullscreen, validate on separate targets, and try a short screen + webcam recording while switching apps. Check actual video duration and CSV timestamp gaps before longer sessions.
+
+### Package for macOS
+
+```sh
+npm run build:mac       # Intel x64
+npm run build:mac:arm   # Apple Silicon arm64
+```
+
+Build output goes to dist/. The preview is not signed or notarized for public distribution; use npm start for development. No DMG has been built or tested yet. The runtime and model still download from external hosts; fully offline assets, native file/session management, a system-wide gaze overlay, and native Swift capture are later work. Recording stays in memory until downloaded. Electron does not make the gaze estimator inherently more accurate.
+
+### Desktop architecture
+
+- desktop/main.cjs: local asset delivery, secure renderer, media permissions, desktop source picker, background settings.
+- package.json: Electron dependencies, startup and packaging scripts.
+- index.html and gaze-worker.js: shared gaze estimation pipeline and recording interface.
+- Next: native SwiftUI / AVFoundation / Core ML prototype, measured against this Electron baseline.
