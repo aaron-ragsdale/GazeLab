@@ -73,3 +73,15 @@ Build output goes to dist/. The preview is not signed or notarized for public di
 - package.json: Electron dependencies, startup and packaging scripts.
 - index.html and gaze-worker.js: shared gaze estimation pipeline and recording interface.
 - Next: native SwiftUI / AVFoundation / Core ML prototype, measured against this Electron baseline.
+
+## Desktop v0.2
+
+Update an existing checkout with git pull, npm install, npm run check, npm start. Quit the old Electron instance first. Build the Intel DMG and ZIP with npm run build:mac; for Apple Silicon use npm run build:mac:arm. For an unpacked Intel .app use npm run build:mac:app. Build locally on macOS. The local build is unsigned (identity null) and intended for development, not public distribution.
+
+The Desktop Studio panel separates foreground, unfocused and minimized benchmark states, offers 30-second, 2-minute and 5-minute trials, and reports median/p95/p99/max inter-sample gaps. CSV includes inference latency and sampled process CPU/working-set memory; the summed working set can double-count shared memory. Reported intervals are within observed state segments and do not include a gap spanning a state transition. These are delivery diagnostics, not gaze accuracy.
+
+Complete a fresh fullscreen calibration on the intended display before enabling the optional click-through floating gaze marker. It hides for missing, stale or out-of-bounds predictions. It may appear in screen recordings; switch it off for clean captures. Multi-display geometry or display arrangement changes require recalibration. The marker is experimental and should not be interpreted as measured fixation.
+
+Completed full recordings automatically copy available exports into Documents/GazeLab Sessions/Session_… when the checkbox is enabled. The original download links remain available. The folder includes existing video exports, gaze_data.csv, session.json, calibration.json when available, and manifest.json. Library buttons open the folders in Finder. Incomplete or timed-out video exports may be absent; inspect the recording status and manifest. Files are saved after recording, not continuously streamed to disk, so long recordings can still use substantial memory. Existing Session Replay supports synchronized screen/gaze viewing by manually selecting the saved video and JSON. Webcam synchronization, richer session analytics and custom model training are future work.
+
+No macOS runtime or packaging test was performed in the development environment. Test camera access, screen capture, session saving and overlay alignment before collecting research data.
