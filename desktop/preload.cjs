@@ -1,5 +1,7 @@
 const {contextBridge,ipcRenderer}=require('electron');
 contextBridge.exposeInMainWorld('gazeDesktop',{
+ capturePreference:(kind,display)=>ipcRenderer.invoke('gaze:capture-preference',kind,display),
+ captureChoice:()=>ipcRenderer.invoke('gaze:capture-choice'),
  state:()=>ipcRenderer.invoke('gaze:state'),
  onState:fn=>{const listener=(_,state)=>fn(state);ipcRenderer.on('gaze:window-state',listener);return()=>ipcRenderer.removeListener('gaze:window-state',listener)},
  metrics:()=>ipcRenderer.invoke('gaze:metrics'),
