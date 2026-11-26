@@ -1,0 +1,1 @@
+const fs=require('node:fs');const path=require('node:path');const vm=require('node:vm');const html=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8');const match=html.match(/<script type="module">([\s\S]*?)<\/script>/);if(!match)throw Error('Renderer module missing');new vm.Script(match[1],{filename:'index.html renderer'});console.log('Renderer syntax OK');
