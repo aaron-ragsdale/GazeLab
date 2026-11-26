@@ -1,0 +1,40 @@
+{
+  "name": "gazelab-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local webcam gaze research studio",
+  "main": "desktop/main.cjs",
+  "scripts": {
+    "start": "electron .",
+    "check": "node --check desktop/main.cjs",
+    "build:mac": "electron-builder --mac --x64",
+    "build:mac:arm": "electron-builder --mac --arm64"
+  },
+  "devDependencies": {
+    "electron": "^44.3.0",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "org.gazelab.desktop",
+    "productName": "GazeLab",
+    "files": [
+      "index.html",
+      "gaze-worker.js",
+      "desktop/main.cjs",
+      "package.json"
+    ],
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "category": "public.app-category.education",
+      "extendInfo": {
+        "NSCameraUsageDescription": "GazeLab uses your camera for local gaze estimation."
+      }
+    },
+    "directories": {
+      "output": "dist"
+    }
+  }
+}
