@@ -2,7 +2,7 @@ const {app,BrowserWindow,session,desktopCapturer,dialog,shell,powerSaveBlocker,s
 const http=require('node:http');
 const fs=require('node:fs');
 const path=require('node:path');
-let win,server,origin,blocker,overlay,overlayDisplay,overlayTimer; const activeSessions=new Map(); const gotLock=app.requestSingleInstanceLock(); if(!gotLock){app.quit();}
+let win,server,origin,blocker,overlay,overlayDisplay,overlayTimer; let captureChoice=null,capturePreference={kind:'screen',display:null}; const activeSessions=new Map(); const gotLock=app.requestSingleInstanceLock(); if(!gotLock){app.quit();}
 const root=path.join(__dirname,'..');
 const allowed=new Map([['/','index.html'],['/index.html','index.html'],['/gaze-worker.js','gaze-worker.js']]);
 function serve(){return new Promise((resolve,reject)=>{
@@ -27,10 +27,22 @@ function permissions(s){
  s.setDisplayMediaRequestHandler(async(request,callback)=>{
   if(!trusted(request.securityOrigin)||!request.videoRequested){callback({});return}
   try{
-   const sources=await desktopCapturer.getSources({types:['screen','window'],thumbnailSize:{width:0,height:0}});
-   const choices=sources.slice(0,40);if(!choices.length){callback({});return}
-   const {response}=await dialog.showMessageBox(win,{type:'question',title:'Choose what to record',message:'Choose a screen or window to record locally',detail:'Nothing is captured until you select a source. Use the calibrated display for aligned gaze.',buttons:[...choices.map((x,i)=>(i+1)+'. '+x.name.slice(0,100)),'Cancel'],cancelId:choices.length,defaultId:choices.length,noLink:true});
-   callback(response<choices.length?{video:choices[response]}:{});
+   captureChoice=null;
+   const kind=capturePreference.kind==='window'?'window':'screen';
+   const sources=await desktopCapturer.getSources({types:[kind],thumbnailSize:{width:0,height:0}});
+   const displays=screen.getAllDisplays(),primary=screen.getPrimaryDisplay();
+   let choices=sources.filter(x=>kind==='screen'||(x.name.trim()&&!/^\d+$/.test(x.name.trim()))).map((source,i)=>{
+    const d=displays.find(d=>String(d.id)===String(source.display_id))||(kind==='screen'&&sources.length===1&&displays.length===1?displays[0]:null);
+    const calibrated=d&&d.id===capturePreference.display;
+    return {source,d,calibrated,label:kind==='screen'?(d?.label||'Display '+(i+1))+(d?' · '+d.size.width+' × '+d.size.height:'')+(d?.id===primary.id?' · Main display':'')+(calibrated?' · Calibrated':''):source.name.slice(0,90)};
+   });
+   choices.sort((a,b)=>Number(!!b.calibrated)-Number(!!a.calibrated));
+   choices=choices.slice(0,20);
+   if(!choices.length){callback({});dialog.showErrorBox('No capture sources','Allow Screen Recording in macOS Privacy & Security, then restart GazeLab.');return}
+   const {response}=await dialog.showMessageBox(win,{type:'question',title:kind==='screen'?'Record a display':'Record an application window',message:kind==='screen'?'Choose your display':'Choose an application window',detail:kind==='screen'?'Use the display you calibrated for gaze alignment.':'Window recordings require manual alignment in replay. Full display is recommended.',buttons:[...choices.map(x=>x.label),'Cancel'],cancelId:choices.length,defaultId:0,noLink:true});
+   const picked=choices[response];if(!picked){callback({});return}
+   captureChoice={surface:kind==='screen'?'monitor':'window',name:picked.label,displayId:picked.d?.id??null,bounds:picked.d?.bounds??null};
+   callback({video:picked.source});
   }catch(e){callback({});dialog.showErrorBox('Screen capture unavailable',String(e.message||e))}
  });
 }
@@ -57,6 +69,8 @@ function sessionPath(id){if(typeof id!=='string'||!/^Session_[0-9T-]+_[a-f0-9]{8
 function closeOverlay(){clearTimeout(overlayTimer);if(overlay&&!overlay.isDestroyed())overlay.destroy();overlay=null;overlayDisplay=null}
 function registerDesktop(){
  handler('state',windowState);
+ handler('capture-preference',(kind,display)=>{capturePreference={kind:kind==='window'?'window':'screen',display:Number.isInteger(display)?display:null};captureChoice=null;return true});
+ handler('capture-choice',()=>captureChoice);
  handler('metrics',()=>{const ms=app.getAppMetrics();return {cpu:ms.reduce((n,x)=>n+(x.cpu?.percentCPUUsage||0),0),memoryMB:ms.reduce((n,x)=>n+(x.memory?.workingSetSize||0),0)/1024,processes:ms.length}});
  handler('begin-session',async()=>{const id='Session_'+new Date().toISOString().replace(/[:.Z]/g,'-')+'_'+require('node:crypto').randomBytes(4).toString('hex');const dir=sessionPath(id);await fs.promises.mkdir(sessionRoot(),{recursive:true});await fs.promises.mkdir(dir);activeSessions.set(id,{files:new Set()});return {id,path:dir}});
  handler('save-chunk',async(id,name,bytes,first)=>{const entry=activeSessions.get(id);if(!entry||typeof name!=='string'||!/^(screen|webcam|combined|gaze_overlay|gaze_data|session|calibration)\.(webm|mp4|csv|json)$/.test(name)||!(bytes instanceof Uint8Array)&&!(bytes instanceof ArrayBuffer)||bytes.byteLength>8*1024*1024)throw Error('Invalid session file');const file=path.join(sessionPath(id),name);const buffer=Buffer.from(bytes);if(first){if(entry.files.has(name))throw Error('File already exists');await fs.promises.writeFile(file,buffer,{flag:'wx'});entry.files.add(name)}else{if(!entry.files.has(name))throw Error('Missing initial chunk');await fs.promises.appendFile(file,buffer)}return true});
